@@ -116,10 +116,6 @@ Commands:
     run [PART]
         Runs the code with the current compiler/interpreter command.
 
-    submit (ANSWER)
-        Submits an answer to the current puzzle. If no answer is given,
-        the output will be taken from running the current compiler command.
-
 Enviromental Variables
     AOC_DIR
         The path to the file that stores the current anwers. Defaults to './.aoc'.
