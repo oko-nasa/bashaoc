@@ -1,0 +1,135 @@
+#!/bin/sh
+
+AOC_READER=${AOC_READER:-less}
+AOC_DIR=${AOC_DIR:-.aoc}
+AOC_ENTRY=${AOC_ENTRY:-workspace*}
+
+[[ -d $AOC_DIR ]] || mkdir -p $AOC_DIR
+
+# Argument parsing
+while (($2)); do
+    case $1 in
+    -d|--day)
+        AOC_DAY=$2
+        shift 2
+        ;;
+    -y|--year)
+        AOC_YEAR=$2
+        shift 2
+        ;;
+    -t|--token)
+        AOC_TOKEN=$2
+        shift 2
+        ;;
+    -*)
+        echo "Error: invalid optional argument '$1 $2'"
+        exit
+        ;;
+    *) break;;
+    esac
+done
+
+settings="$AOC_DIR/settings.json"
+
+[[ -f $settings ]]  || echo -e "{\n    \"day\":1,\n    \"year\":2015,\n    \"token\":\"\"\n}" > $settings
+if [[ -z $AOC_DAY ]]; then   AOC_DAY=$(jq -r '.day' $settings)     || exit 1 ; fi
+if [[ -z $AOC_YEAR ]]; then  AOC_YEAR=$(jq -r '.year' $settings)   || exit 1 ; fi
+if [[ -z $AOC_TOKEN ]]; then AOC_TOKEN=$(jq -r '.token' $settings) || exit 1 ; fi
+
+if [[ -z "$AOC_TOKEN" ]] && [[ $1 -ne "export" ]]; then
+    echo "aoc: error: no aoc session token present."
+    exit 1
+fi
+
+url="https://adventofcode.com/$AOC_YEAR/day/$AOC_DAY"
+
+case $1 in
+
+    help)
+        help_needed="x"
+        ;;
+
+    export)
+        echo -e "{
+    \"day\":$AOC_DAY,
+    \"year\":$AOC_YEAR,
+    \"token\":\"$AOC_TOKEN\"
+}" > "$AOC_DIR/settings.json"
+        ;;
+
+    input)
+        srcpath="$AOC_DIR/input/$AOC_YEAR/day$AOC_DAY"
+        [[ -f $srcpath  ]] || \
+            curl -sS --create-dirs --cookie "session=$AOC_TOKEN" \
+                "$url/input" -o $srcpath
+        echo $srcpath
+        ;;
+
+    run)
+        if [[ -z $AOC_COMP ]]; then
+            echo "aoc: error: '$AOC_COMP' doesn't exist."
+            exit 1
+        elif [[ $# -gt 2 ]]; then
+            echo "aoc: error: wrong number of arguments (aoc run [PART])"
+            exit 1
+        fi
+        shift 1
+
+        srcpath="$AOC_DIR/input/$AOC_YEAR/day$AOC_DAY"
+        [[ -f $srcpath  ]] || \
+            curl -sS --create-dirs --cookie "session=$AOC_TOKEN" \
+                "$url/input" -o $srcpath
+
+        part=${2:-0}
+        echo ">> AOC $AOC_YEAR/$AOC_DAY <<"
+        if [[ $part == "0" ]]; then
+            echo -e "Result Part 1:\n$($AOC_COMP $AOC_ENTRY 1 $srcpath)" || exit 1
+            echo -e "Result Part 2:\n$($AOC_COMP $AOC_ENTRY 2 $srcpath)" || exit 1
+        else
+            echo -e "Result Part $part:\n$($AOC_COMP $AOC_ENTRY 1 $srcpath)"
+        fi
+        ;;
+
+    *) help_needed="x"; AOC_READER="cat" ;;
+
+esac
+
+if [[ -n $help_needed ]]; then
+    echo -e "Use:
+    aoc [OPTIONS] [COMMAND] [ARG..]
+
+Options:
+    -d|--day DAY        Day being worked on. Defaults to 1.
+    -y|--year YEAR      Year being worked on. Defaults to 2015.
+    -t|--token TOKEN    Session token. Defaults to nothing.
+
+Commands:
+    help
+        Prints out this text piped into AOC_READER.
+
+    input
+        Prints the current puzzle's input. Downloads it if it's not cached.
+
+    export
+        Exports the current settings.
+
+    run [PART]
+        Runs the code with the current compiler/interpreter command.
+
+    submit (ANSWER)
+        Submits an answer to the current puzzle. If no answer is given,
+        the output will be taken from running the current compiler command.
+
+Enviromental Variables
+    AOC_DIR
+        The path to the file that stores the current anwers. Defaults to './.aoc'.
+
+    AOC_COMP
+        The path to the script that runs the compiler/interpreter. Defaults to nothing.
+
+    AOC_ENTRY
+        The entry point of the program to be compiled. Defaults to './workspace*'.
+
+    AOC_READER
+        The help reader. Defaults to less." | $AOC_READER
+fi
